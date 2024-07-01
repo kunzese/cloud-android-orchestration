@@ -21,6 +21,7 @@ locals {
     "iap.googleapis.com",
     "run.googleapis.com",
     "secretmanager.googleapis.com",
+    "vpcaccess.googleapis.com",
   ])
 }
 
@@ -40,8 +41,6 @@ resource "google_project_service" "apis" {
 data "google_project" "project" {
 }
 
-// docker build -t us-central1-docker.pkg.dev/kunzese-fast-demo-co-ko56/my-repository/cloud-orchestrator:latest .
-// docker push us-central1-docker.pkg.dev/kunzese-fast-demo-co-ko56/my-repository/cloud-orchestrator:latest
 resource "google_artifact_registry_repository" "my-repo" {
   location      = var.region
   repository_id = var.artifact_repository_id
@@ -67,16 +66,6 @@ resource "google_iap_brand" "project_brand" {
   application_title = "Cloud Orchestrator"
   project           = var.project_id
 }
-
-# import {
-#   id = "projects/525833519488/brands/525833519488"
-#   to = google_iap_brand.project_brand
-# }
-
-# import {
-#   id = "projects/525833519488/brands/525833519488/identityAwareProxyClients/525833519488-l515r5d03o3q04q9voe59b3vs0kclr8p.apps.googleusercontent.com"
-#   to = google_iap_client.project_client
-# }
 
 resource "google_iap_client" "project_client" {
   display_name = "IAP-co-backend-service"
@@ -131,7 +120,7 @@ resource "google_compute_region_network_endpoint_group" "serverless_neg" {
   network_endpoint_type = "SERVERLESS"
   region                = var.region
   cloud_run {
-    service = google_cloud_run_service.default.name
+    service = var.cloud_run_name
   }
 }
 
@@ -146,73 +135,49 @@ resource "google_secret_manager_secret_iam_member" "member" {
   member    = google_service_account.service_account.member
 }
 
-resource "google_cloud_run_service" "default" {
-  name     = "example"
-  location = var.region
+# Networking
 
-  template {
-    spec {
-      service_account_name = google_service_account.service_account.email
-      containers {
-        image = "gcr.io/cloudrun/hello"
-
-        volume_mounts {
-          mount_path = "/config"
-          name       = "secret-1"
-        }
-
-        env {
-          name  = "CONFIG_FILE"
-          value = "/config/conf.toml"
-        }
-
-        env {
-          name  = "IAP_AUDIENCE"
-          value = "" // TODO: how to manage the audience (terraform cycle)?
-        }
-      }
-
-      volumes {
-        name = "secret-1"
-        secret {
-          secret_name = google_secret_manager_secret.co-config.secret_id
-          items {
-            key  = "latest"
-            path = "./conf.toml"
-          }
-        }
-      }
-    }
-  }
-
-  metadata {
-    annotations = {
-      # For valid annotation values and descriptions, see
-      # https://cloud.google.com/sdk/gcloud/reference/run/deploy#--ingress
-      "run.googleapis.com/ingress" = "internal-and-cloud-load-balancing"
-    }
-  }
-
-  lifecycle {
-    ignore_changes = [
-      template[0].spec[0].containers[0].image,
-      template[0].spec[0].containers[0].env // TODO: is there a way to only ignore IAP_AUDIENCE?
-    ]
-  }
+resource "google_compute_network" "network" {
+  name                    = var.network_name
+  auto_create_subnetworks = false
 }
 
-output "image_name" {
-  value = "${google_artifact_registry_repository.my-repo.location}.pkg.dev/kunzese-fast-demo-co-ko56/${google_artifact_registry_repository.my-repo.name}/cloud-orchestrator:latest"
+resource "google_vpc_access_connector" "connector" {
+  region        = var.region
+  name          = var.serverless_connector_name
+  ip_cidr_range = "10.8.0.0/28"
+  network       = google_compute_network.network.id
 }
 
-output "update-container-image" {
-  value = "gcloud run services update ${google_cloud_run_service.default.name} --region=${google_cloud_run_service.default.location} --image=${google_artifact_registry_repository.my-repo.location}.pkg.dev/kunzese-fast-demo-co-ko56/${google_artifact_registry_repository.my-repo.name}/cloud-orchestrator:latest --update-env-vars=IAP_AUDIENCE=/projects/${data.google_project.project.number}/global/backendServices/${nonsensitive(module.lb-http.backend_services.default.generated_id)}"
+locals {
+  image = "${google_artifact_registry_repository.my-repo.location}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.my-repo.name}/cloud-orchestrator:latest"
 }
 
-resource "google_cloud_run_service_iam_member" "public-access" {
-  location = google_cloud_run_service.default.location
-  project  = google_cloud_run_service.default.project
-  service  = google_cloud_run_service.default.name
-  role     = "roles/run.invoker"
-  member   = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-iap.iam.gserviceaccount.com"
+output "step_1_docker_build" {
+  value = "docker build -t ${local.image} ."
+}
+
+output "step_2_docker_push" {
+  value = "docker push ${local.image}"
+}
+
+output "step_3_cloud_run_deploy" {
+  value = <<EOF
+gcloud run deploy example \
+  --image=${local.image} \
+  --no-allow-unauthenticated \
+  --port=8080 \
+  --service-account=${google_service_account.service_account.email} \
+  --set-env-vars='CONFIG_FILE=/config/conf.toml' --set-env-vars='IAP_AUDIENCE=/projects/${data.google_project.project.number}/global/backendServices/${nonsensitive(module.lb-http.backend_services.default.generated_id)}' \
+  --set-secrets=/config/conf.toml=cloud-orchestrator-config:latest \
+  --ingress=internal-and-cloud-load-balancing \
+  --vpc-connector=${google_vpc_access_connector.connector.id} \
+  --vpc-egress=private-ranges-only \
+  --region=${var.region} \
+  --project=${var.project_id}
+EOF
+}
+
+output "step_4_gcloud_run_add_iam" {
+  value = "gcloud run services add-iam-policy-binding ${var.cloud_run_name} --member=serviceAccount:service-${data.google_project.project.number}@gcp-sa-iap.iam.gserviceaccount.com --role=roles/run.invoker"
 }

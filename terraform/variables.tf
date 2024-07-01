@@ -20,6 +20,7 @@ variable "project_id" {
 
 variable "region" {
   description = "Location for load balancer and Cloud Run resources"
+  type        = string
   default     = "europe-west3"
 }
 
@@ -30,18 +31,41 @@ variable "domain" {
 
 variable "lb_name" {
   description = "Name for load balancer and associated resources"
+  type        = string
   default     = "tf-cr-lb"
 }
 
 variable "oauth_support_email" {
   description = "eMail address displayed to users regarding questions about their consent"
+  type        = string
 }
 
 variable "artifact_repository_id" {
-  default = "cloud-android-orchestration"
+  description = "The name of the Artificat Repository"
+  type        = string
+  default     = "cloud-android-orchestration"
 }
 
 variable "service_accessors" {
   description = "List of principals which should be able to call the cloud orchestrator"
+  type        = list(string)
   default     = []
+}
+
+variable "cloud_run_name" {
+  description = "The name of the Cloud Run service"
+  type        = string
+  default     = "cloud-orchestrator"
+}
+
+variable "network_name" {
+  description = "The name of the VPC network"
+  type        = string
+  default     = "co-network"
+}
+
+variable "serverless_connector_name" {
+  description = "The name of the Serverless VPC Connector"
+  type        = string
+  default     = "co-vpc-connector"
 }

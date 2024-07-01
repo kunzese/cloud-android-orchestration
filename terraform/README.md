@@ -1,6 +1,6 @@
 # Steps
 
-## Set up project
+## STEP 1: Set up project
 
 ```
 $ cd terraform
@@ -8,18 +8,29 @@ $ terraform plan
 $ terraform apply
 ```
 
-## Build and push the cloud orchestrator image
+`terraform apply` returns four outputs which you need to run after `terraform apply` ends successfully.
+
+## STEP 2: Build and push the cloud orchestrator image
 
 ```
-$ docker build -t us-central1.pkg.dev/kunzese-fast-demo-co-ko56/my-repository/cloud-orchestrator:latest .
-$ docker push us-central1.pkg.dev/kunzese-fast-demo-co-ko56/my-repository/cloud-orchestrator:latest
+$ docker build -t europe-west3-docker.pkg.dev/[PROJECT_ID]/my-repository/cloud-orchestrator:latest .
+$ docker push europe-west3-docker.pkg.dev/[PROJECT_ID]/my-repository/cloud-orchestrator:latest
 ```
 
-## Patch Cloud Run service
+## STEP 3: Patch Cloud Run service
 
 ```
-$ gcloud run services update example \
-    --region=us-central1 \
-    --image=us-central1.pkg.dev/kunzese-fast-demo-co-ko56/my-repository/cloud-orchestrator:latest \
-    --update-env-vars=IAP_AUDIENCE=/projects/525833519488/global/backendServices/2669782804217519149
+$ gcloud run deploy cloud-orchestrator \
+  --image=europe-west3-docker.pkg.dev/[PROJECT_ID]/my-repository/cloud-orchestrator:latest \
+  --no-allow-unauthenticated \
+  --port=8080 \
+  --service-account=cloud-orchestrator@[PROJECT_ID].iam.gserviceaccount.com \
+  --set-env-vars='CONFIG_FILE=/config/conf.toml' --set-env-vars='IAP_AUDIENCE=/projects/[PROJECT_NUMBER]/global/backendServices/327730686667727339' \
+  --set-secrets=/config/conf.toml=cloud-orchestrator-config:latest \
+  --ingress=internal-and-cloud-load-balancing \
+  --vpc-connector=projects/[PROJECT_ID]/locations/europe-west3/connectors/co-vpc-connector \
+  --vpc-egress=private-ranges-only \
+  --region=europe-west3 \
+  --project=[PROJECT_ID]
+$ gcloud run services add-iam-policy-binding cloud-orchestrator --member=serviceAccount:service-[PROJECT_NUMBER]@gcp-sa-iap.iam.gserviceaccount.com --role=roles/run.invoker
 ```
