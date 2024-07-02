@@ -72,11 +72,12 @@ resource "google_iap_client" "project_client" {
   brand        = google_iap_brand.project_brand.name
 }
 
-resource "google_iap_web_backend_service_iam_binding" "binding" {
+resource "google_iap_web_backend_service_iam_member" "member" {
+  for_each            = var.service_accessors
   project             = var.project_id
   web_backend_service = module.lb-http.backend_services.default.name
   role                = "roles/iap.httpsResourceAccessor"
-  members             = var.service_accessors
+  member              = each.key
 }
 
 module "lb-http" {
@@ -135,11 +136,16 @@ resource "google_secret_manager_secret_iam_member" "member" {
   member    = google_service_account.service_account.member
 }
 
-# Networking
+resource "google_project_iam_member" "member" {
+  project = var.project_id
+  role    = "roles/compute.admin"
+  member  = google_service_account.service_account.member
+}
 
+# Networking
 resource "google_compute_network" "network" {
-  name                    = var.network_name
-  auto_create_subnetworks = false
+  name                    = "default"
+  auto_create_subnetworks = true
 }
 
 resource "google_vpc_access_connector" "connector" {

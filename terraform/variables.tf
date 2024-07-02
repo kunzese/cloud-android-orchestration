@@ -48,7 +48,7 @@ variable "artifact_repository_id" {
 
 variable "service_accessors" {
   description = "List of principals which should be able to call the cloud orchestrator"
-  type        = list(string)
+  type        = set(string)
   default     = []
 }
 
@@ -56,12 +56,6 @@ variable "cloud_run_name" {
   description = "The name of the Cloud Run service"
   type        = string
   default     = "cloud-orchestrator"
-}
-
-variable "network_name" {
-  description = "The name of the VPC network"
-  type        = string
-  default     = "co-network"
 }
 
 variable "serverless_connector_name" {
