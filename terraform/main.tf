@@ -187,7 +187,7 @@ output "step_2_docker_push" {
 
 output "step_3_cloud_run_deploy" {
   value = <<EOF
-gcloud run deploy example \
+gcloud run deploy ${var.cloud_run_name} \
   --image=${local.image} \
   --no-allow-unauthenticated \
   --port=8080 \
@@ -203,5 +203,5 @@ EOF
 }
 
 output "step_4_gcloud_run_add_iam" {
-  value = "gcloud run services add-iam-policy-binding ${var.cloud_run_name} --member=serviceAccount:service-${data.google_project.project.number}@gcp-sa-iap.iam.gserviceaccount.com --role=roles/run.invoker"
+  value = "gcloud run services add-iam-policy-binding ${var.cloud_run_name} --region=${var.region} --member=serviceAccount:service-${data.google_project.project.number}@gcp-sa-iap.iam.gserviceaccount.com --role=roles/run.invoker"
 }
