@@ -155,6 +155,24 @@ resource "google_vpc_access_connector" "connector" {
   network       = google_compute_network.network.id
 }
 
+# Firewall
+resource "google_compute_firewall" "default" {
+  name    = "allow-cloud-orchestrator"
+  network = google_compute_network.network.name
+
+  allow {
+    protocol = "tcp"
+    ports    = ["1080", "1443", "15550-15599"]
+  }
+
+  allow {
+    protocol = "udp"
+    ports    = ["15550-15599"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+}
+
 locals {
   image = "${google_artifact_registry_repository.my-repo.location}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.my-repo.name}/cloud-orchestrator:latest"
 }
