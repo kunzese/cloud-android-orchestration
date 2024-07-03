@@ -38,6 +38,13 @@ resource "google_project_service" "apis" {
   service  = each.key
 }
 
+resource "google_project_service_identity" "iap" {
+  provider = google-beta
+
+  project = data.google_project.project.project_id
+  service = "iap.googleapis.com"
+}
+
 data "google_project" "project" {
 }
 
@@ -224,5 +231,5 @@ EOF
 }
 
 output "step_4_gcloud_run_add_iam" {
-  value = "gcloud run services add-iam-policy-binding ${var.cloud_run_name} --region=${var.region} --member=serviceAccount:service-${data.google_project.project.number}@gcp-sa-iap.iam.gserviceaccount.com --role=roles/run.invoker"
+  value = "gcloud run services add-iam-policy-binding ${var.cloud_run_name} --region=${var.region} --member=serviceAccount:service-${data.google_project.project.number}@gcp-sa-iap.iam.gserviceaccount.com --role=roles/run.invoker --project=${var.project_id}"
 }
