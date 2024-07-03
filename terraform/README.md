@@ -13,6 +13,11 @@ $ terraform apply
 ## STEP 2: Build and push the cloud orchestrator image
 
 ```
+gcloud auth configure-docker \
+    europe-west3-docker.pkg.dev
+```
+
+```
 $ docker build -t europe-west3-docker.pkg.dev/[PROJECT_ID]/my-repository/cloud-orchestrator:latest .
 $ docker push europe-west3-docker.pkg.dev/[PROJECT_ID]/my-repository/cloud-orchestrator:latest
 ```
