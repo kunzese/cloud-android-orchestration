@@ -201,35 +201,18 @@ resource "google_compute_firewall" "default" {
   source_ranges = ["0.0.0.0/0"]
 }
 
-locals {
-  image = "${google_artifact_registry_repository.my-repo.location}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.my-repo.name}/cloud-orchestrator:latest"
-}
-
-output "step_1_docker_build" {
-  value = "docker build -t ${local.image} ."
-}
-
-output "step_2_docker_push" {
-  value = "docker push ${local.image}"
-}
-
-output "step_3_cloud_run_deploy" {
-  value = <<EOF
-gcloud run deploy ${var.cloud_run_name} \
-  --image=${local.image} \
-  --no-allow-unauthenticated \
-  --port=8080 \
-  --service-account=${google_service_account.service_account.email} \
-  --set-env-vars='CONFIG_FILE=/config/conf.toml' --set-env-vars='IAP_AUDIENCE=/projects/${data.google_project.project.number}/global/backendServices/${nonsensitive(module.lb-http.backend_services.default.generated_id)}' \
-  --set-secrets=/config/conf.toml=cloud-orchestrator-config:latest \
-  --ingress=internal-and-cloud-load-balancing \
-  --vpc-connector=${google_vpc_access_connector.connector.id} \
-  --vpc-egress=private-ranges-only \
-  --region=${var.region} \
-  --project=${var.project_id}
-EOF
-}
-
-output "step_4_gcloud_run_add_iam" {
-  value = "gcloud run services add-iam-policy-binding ${var.cloud_run_name} --region=${var.region} --member=serviceAccount:service-${data.google_project.project.number}@gcp-sa-iap.iam.gserviceaccount.com --role=roles/run.invoker --project=${var.project_id}"
+resource "local_file" "build_and_deploy" {
+  content = templatefile("build-and-deploy.sh.tmpl", {
+    IMAGE                = "${google_artifact_registry_repository.my-repo.location}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.my-repo.name}/cloud-orchestrator:latest",
+    PROJECT_ID           = var.project_id,
+    PROJECT_NUMBER       = data.google_project.project.number,
+    REGION               = var.region,
+    CLOUD_RUN_NAME       = var.cloud_run_name,
+    SA_EMAIL             = google_service_account.service_account.email,
+    CONNECTOR_ID         = google_vpc_access_connector.connector.id,
+    BACKEND_SERVICE_NAME = nonsensitive(module.lb-http.backend_services.default.name),
+    BACKEND_SERVICE_ID   = nonsensitive(module.lb-http.backend_services.default.generated_id),
+    OAUTH_CLIENT_ID      = google_iap_client.project_client.client_id,
+  })
+  filename = "${path.root}/build-and-deploy.sh"
 }
