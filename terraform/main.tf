@@ -45,6 +45,9 @@ resource "google_artifact_registry_repository" "my-repo" {
   location      = var.region
   repository_id = var.artifact_repository_id
   format        = "DOCKER"
+  depends_on = [
+    google_project_service.apis
+  ]
 }
 
 // Secret Manager
@@ -54,6 +57,9 @@ resource "google_secret_manager_secret" "co-config" {
   replication {
     auto {}
   }
+  depends_on = [
+    google_project_service.apis
+  ]
 }
 
 resource "google_secret_manager_secret_version" "secret-version-basic" {
@@ -65,6 +71,9 @@ resource "google_iap_brand" "project_brand" {
   support_email     = var.oauth_support_email
   application_title = "Cloud Orchestrator"
   project           = var.project_id
+  depends_on = [
+    google_project_service.apis
+  ]
 }
 
 resource "google_iap_client" "project_client" {
@@ -113,6 +122,9 @@ module "lb-http" {
       }
     }
   }
+  depends_on = [
+    google_project_service.apis
+  ]
 }
 
 resource "google_compute_region_network_endpoint_group" "serverless_neg" {
@@ -123,11 +135,17 @@ resource "google_compute_region_network_endpoint_group" "serverless_neg" {
   cloud_run {
     service = var.cloud_run_name
   }
+  depends_on = [
+    google_project_service.apis
+  ]
 }
 
 resource "google_service_account" "service_account" {
   account_id   = "cloud-orchestrator"
   display_name = "Service Account used for Cloud Orchestrator"
+  depends_on = [
+    google_project_service.apis
+  ]
 }
 
 resource "google_secret_manager_secret_iam_member" "member" {
@@ -146,6 +164,9 @@ resource "google_project_iam_member" "member" {
 resource "google_compute_network" "network" {
   name                    = "default"
   auto_create_subnetworks = true
+  depends_on = [
+    google_project_service.apis
+  ]
 }
 
 resource "google_vpc_access_connector" "connector" {
